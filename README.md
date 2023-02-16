@@ -44,11 +44,12 @@ cd /home/rstudio/PBTA-miRNA-analysis/analyses/module_of_interest
 │   ├── 03-survival-analysis
 │   ├── 04-clinical-correlation
 │   ├── 05-mutational-burden-correlation
-│   ├── 06-tumor-specific-consensus-clustering
-│   ├── 07-sankey-plot
-│   ├── 08-gng-de-analysis
-│   ├── 09-additional_figures
-│   └── 10-tables
+│   ├── 06-wgcna-mirna
+│   ├── 07-tumor-specific-consensus-clustering
+│   ├── 08-sankey-plot
+│   ├── 09-gng-de-analysis
+│   ├── 10-additional_figures
+│   └── 11-tables
 ├── data
 │   ├── pbta_clinical_mirna.csv
 │   ├── pbta_meta_mirna.rds
