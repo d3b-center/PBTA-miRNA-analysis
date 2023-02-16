@@ -1,6 +1,6 @@
 # Large-scale miRNA sequencing analysis reveals four distinct clustering of pediatric brain tumor subtypes
 
-Shehbeel Arif, ...
+Authors: ...
 
 ## To reproduce the code in this repository:
 This repository contains a docker image and code used to conduct miRNA analyses for the manuscript noted above.
@@ -39,14 +39,16 @@ cd /home/rstudio/PBTA-miRNA-analysis/analyses/module_of_interest
 ├── LICENSE
 ├── README.md
 ├── analyses
-│   ├── 01-consensus_clustering
-│   ├── 02-circos-plot
-│   ├── 03-intercluster_pie_chart
-│   ├── 04-intra_tumor_clustering
-│   ├── 05-sankey-plot
-│   ├── 06-survival
-│   ├── 07-additional_figures
-│   └── 08-tables
+│   ├── 01-circos-plot
+│   ├── 02-consensus-clustering
+│   ├── 03-survival-analysis
+│   ├── 04-clinical-correlation
+│   ├── 05-mutational-burden-correlation
+│   ├── 06-tumor-specific-consensus-clustering
+│   ├── 07-sankey-plot
+│   ├── 08-gng-de-analysis
+│   ├── 09-additional_figures
+│   └── 10-tables
 ├── data
 │   ├── pbta_clinical_mirna.csv
 │   ├── pbta_meta_mirna.rds
