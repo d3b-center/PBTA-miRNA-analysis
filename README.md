@@ -58,6 +58,9 @@ cd /home/rstudio/PBTA-miRNA-analysis/analyses/module_of_interest
 │   ├── pbta_clusters_mirna.csv
 │   ├── pbta_clusters_gng.csv
 │   └── v1
+├── utils
+├── palletes
+├── data
 ├── download-data.sh
 └── scratch
 ```
