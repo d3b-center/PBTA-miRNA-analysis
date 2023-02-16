@@ -5,7 +5,7 @@ install.packages("survminer")
 library("survminer")
 
 # Set working directory
-#setwd("~/OneDrive - Children's Hospital of Philadelphia/OpenPBTA_miRNA_manuscript/survival_plots")
+#setwd("~/.../survival_plots")
 
 # Load Data
 pbta.dat <- read.csv("pbta_clinical_data.csv")
