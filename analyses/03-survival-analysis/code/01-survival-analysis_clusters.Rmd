@@ -1,0 +1,260 @@
+---
+title: "Survival Analysis for PBTA miRNA Clusters"
+output: 
+  html_notebook:
+    toc: TRUE
+    toc_float: TRUE
+author: Shehbeel Arif
+date: 2023
+params:
+  plot_ci: TRUE
+---
+
+**Purpose:**
+
+Runs survival analysis models for miRNA clusters.
+
+## Usage
+
+Uses a wrapper function (`survival_analysis`) from utils folder.
+
+## Setup
+
+#### Packages and functions
+
+Read in set up script.
+
+```{r Set up library}
+library(survival)
+library(ggpubr)
+library(tidyverse)
+#library(openxlsx)
+# Set directories
+root_dir <- rprojroot::find_root(rprojroot::has_dir(".git"))
+analysis_dir <- file.path(root_dir, "analyses", "03-survival-analysis")
+# Source this script, which contains a wrapper function that can conduct the survival analyses, from OpenPBTA
+source(file.path(analysis_dir, "util", "survival_models.R"))
+# Magrittr pipe
+`%>%` <- dplyr::`%>%`
+```
+
+#### Set up files and directories
+
+Set up output directories.
+
+```{r Set up directories}
+#input_dir <- file.path(root_dir, "analyses", "02-add-histologies", "output")
+input_dir <- file.path(root_dir, "data")
+#tma_dir <- file.path(root_dir, "analyses", "05-oncoplot", "input")
+results_dir <- file.path(analysis_dir, "output")
+plots_dir <- file.path(analysis_dir, "plots")
+```
+
+Make output directories.
+
+```{r Make output directories}
+if (!dir.exists(results_dir)) {
+  dir.create(results_dir)
+}
+if (!dir.exists(plots_dir)) {
+  dir.create(plots_dir)
+}
+```
+
+Declare input file paths and useful variables
+
+```{r Set input file paths}
+metadata_file <- file.path(input_dir, "pbta_clinical_mirna.csv")
+
+```
+
+Declare output file paths for miRNA clusters.
+
+```{r Set output file paths}
+kap_meier_plot_file <- file.path(plots_dir, "KM_mirna_clusters.pdf")
+kap_meier_model_file <- file.path(results_dir, "logrank_mirna_clusters.RDS")
+table_s2_file <- file.path(results_dir, "Table-S2.xlsx")
+```
+
+## Import the metadata
+
+```{r Read in metadata}
+
+# Load Data
+metadata <- read.csv(metadata_file)
+metadata$OS_days <- as.numeric(metadata$OS_days)
+metadata$PFS_days <- as.numeric(metadata$PFS_days)
+
+# Drop GNT, Schwannoma, and Teratoma samples
+metadata <- metadata[metadata$short_histology!='GNT',]
+metadata <- metadata[metadata$short_histology!='Schwannoma',]
+metadata <- metadata[metadata$short_histology!='Teratoma',]
+
+# metadata %>%
+#   # keep only relevant columns
+#   select(Kids_First_Participant_ID, Kids_First_Biospecimen_ID_DNA, Kids_First_Biospecimen_ID_RNA, tumor_descriptor, ALT_status, molecular_subtype, OS_days, OS_years, OS_status, `H3K28me3 IHC`, `H3K28M IHC`, `Somatic H3`)
+```
+
+## Create new variable
+
+```{r add alt status to subtype}
+# # first update H3 subtype
+# meta_updated <- metadata %>%
+#   dplyr::mutate(mol_sub_group = case_when(
+#     molecular_subtype %in% c("DMG, H3 K28", 
+#                              "DMG, H3 K28, TP53 loss", 
+#                              "DMG, H3 K28, TP53 activated") ~ "H3 K28",
+#     molecular_subtype %in% c("HGG, H3 G35",
+#                              "HGG, H3 G35, TP53 loss") ~ "H3 G35",
+#     molecular_subtype %in% c("HGG, H3 wildtype",
+#                              "HGG, H3 wildtype, TP53 loss",
+#                              "HGG, H3 wildtype, TP53 activated") ~ "H3 WT",
+#     molecular_subtype %in% c("HGG, IDH, TP53 loss",
+#                              "HGG, IDH, TP53 activated") ~ "IDH",
+#     TRUE ~ NA_character_
+#   )) %>%
+#   
+#   # add logic for non-mutant H3 which are K28-altered
+#   dplyr::mutate(mol_sub_group = case_when(    
+#     `H3K28me3 IHC` == "LOST" & `Somatic H3` == "H3-wildtype" ~ "H3 K28",
+#     TRUE ~ as.character(mol_sub_group)))
+# as.data.frame(table(meta_updated$mol_sub_group))
+# # add in ALT status
+# meta_updated$alt_subtype <- paste(meta_updated$mol_sub_group, meta_updated$ALT_status, sep = ", ")
+# as.data.frame(table(meta_updated$alt_subtype))
+# # re-level to make H3K28 WT ALT - reference
+# meta_updated <- meta_updated %>%
+#    mutate(alt_subtype = factor(alt_subtype)) %>% 
+#    mutate(alt_subtype = fct_relevel(alt_subtype, c("H3 WT, ALT -",
+#                                                    "H3 WT, ALT +",
+#                                                    "H3 K28, ALT -",
+#                                                    "H3 K28, ALT +",
+#                                                    "H3 G35, ALT +"))) %>%
+#  arrange(alt_subtype)
+```
+
+## Kaplan-Meier for all HGG/DMG subtypes
+
+The [Kaplan-Meier](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3059453/) survival curve shows the probability of survival over time.
+
+```{r Kaplan Meier, warning=TRUE}
+kap_fit <- survival_analysis(
+  metadata  = metadata,
+  ind_var = "short_histology",
+  test = "kap.meier",
+  metadata_sample_col = "sample_id"
+  )
+# median and 0.95CI survival days
+kap_fit_data <- kap_fit$original_data %>%
+  mutate(OS_months = OS_days/30.417,
+         OS_status = ifelse(OS_status == 0, "LIVING", "DECEASED")) %>%
+  select(-OS_days)
+kap_fit_data_summary <- kap_fit_data %>%
+  group_by(alt_subtype) %>%
+  summarise_each(funs(median(., na.rm = T), sd(., na.rm = T)), OS_months)
+```
+
+# Make K-M plot
+
+```{r Make survival plot}
+surv_plot <- survminer::ggsurvplot(fit = kap_fit$model,
+  data = kap_fit$original_data,
+  pval = TRUE,
+  risk.table = TRUE,
+  xlim = c(0, 4000),
+  break.time.by = 500,
+  ggtheme = theme_minimal(),
+  risk.table.y.text.col = TRUE,
+  risk.table.y.text = FALSE,
+)
+surv_plot$plot <- surv_plot$plot +
+  ggtitle(paste0("Kaplan Meier HGG tumors by ALT subtype")) +
+  theme(legend.position = "right")
+# Make this plot a combined plot
+surv_plot_all_subtype <-
+  cowplot::plot_grid(surv_plot[[1]], surv_plot[[2]], nrow = 2,
+                     rel_heights = c(3, 2))
+# Print it out here
+surv_plot_all_subtype
+```
+
+Save the plot to a file.
+
+```{r Save survival plot}
+# We can save the plot like a normal ggplot
+cowplot::save_plot(filename = kap_meier_plot_file, plot = surv_plot_all_subtype, base_height = 5, base_width = 8)
+# Save the model itself as well as all other output from `survival_analysis()`
+readr::write_rds(kap_fit, kap_meier_model_file)
+```
+
+## Analysis: cox regression based on ALT status
+
+```{r ALT status}
+# Run model
+fit_save_model(meta_updated, 
+               "ALT_status",
+               file.path(results_dir, "cox_hgg_alt_status.RDS"))
+```
+
+## Analysis: cox regression for HGG ALT subtypes
+
+```{r cox hgg subtype}
+# Run model
+fit_save_model(meta_updated, 
+               "alt_subtype",
+               file.path(results_dir, "cox_hgg_alt_subtype.RDS"))
+```
+
+## Multivariate analysis using molecular subtype and ALT subtypes
+
+### Interaction model - not significant
+
+`mol_sub_group*ALT_status`
+
+```{r int alt molsub}
+# we save this for the purpose of printing out a p-value below
+int_model <- fit_save_model(meta_updated,
+             "mol_sub_group*ALT_status",
+             file.path(results_dir, "cox_interaction_terms_alt_molsub.RDS"),
+             "multivariate"
+            )
+int_model
+```
+
+### Additive model: `mol_sub_group+ALT_status`
+
+Also not significant
+
+```{r additive alt molsub}
+# we save this for the purpose of printing out a p-value below
+add_model <- fit_save_model(meta_updated,     # use the data unknown resection data for this model
+             "mol_sub_group+ALT_status",
+             file.path(results_dir, "cox_additive_terms_mol_sub_group_ALT_status.RDS"),
+             "multivariate"
+            )
+add_model
+```
+
+Pairwise comparisons
+
+```{r cox pairwise}
+# Double check the function isn't missing them - get the same result below
+metadata_recode <- meta_updated %>%
+      mutate(OS_status = ifelse(OS_status == "LIVING", 0, 1))
+pairwise_survdiff(formula = Surv(OS_years, OS_status) ~ alt_subtype, 
+                  data = metadata_recode)
+```
+
+## Export table for manuscript
+
+```{r table_s4}
+# Combine and output
+list_s4_table <- list(kaplan_meier_fit = as.data.frame(kap_fit_data),
+                      kaplan_meier_summary = as.data.frame(kap_fit_data_summary),
+                      cox_additive_model = as.data.frame(add_model)
+                      )
+openxlsx::write.xlsx(list_s4_table,
+                     table_s4_file, 
+                     overwrite = T, 
+                     keepNA=TRUE)
+```
